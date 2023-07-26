@@ -50,7 +50,8 @@ fn quoted_string(s: Span) -> IResult<Span, Span> {
 }
 
 fn operator(s: Span) -> IResult<Span, Operator> {
-    alt((map(tag("=="), |_| Operator::Eq),))(s)
+    let inner = alt((map(tag("=="), |_| Operator::Eq),));
+    return delimited(multispace0, inner, multispace0)(s);
 }
 
 fn value(s: Span) -> IResult<Span, Value> {
@@ -126,9 +127,9 @@ mod tests {
             "input"
         );
         assert_eq!(operator(span("==")).unwrap().1, Operator::Eq);
-        // assert_eq!(operator(span(" ==")).unwrap().1, Operator::Eq);
-        // assert_eq!(operator(span("== ")).unwrap().1, Operator::Eq);
-        // assert_eq!(operator(span(" == ")).unwrap().1, Operator::Eq);
+        assert_eq!(operator(span(" ==")).unwrap().1, Operator::Eq);
+        assert_eq!(operator(span("== ")).unwrap().1, Operator::Eq);
+        assert_eq!(operator(span(" == ")).unwrap().1, Operator::Eq);
     }
 
     #[test]
@@ -154,7 +155,7 @@ mod tests {
 
     #[test]
     fn parse_test() {
-        let expr = parse("name=='John'").unwrap();
+        let expr = parse("name == 'John'").unwrap();
         assert_eq!(
             expr,
             Expr::BinaryExpr(
