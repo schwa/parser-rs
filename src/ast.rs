@@ -1,9 +1,17 @@
-#[derive(Debug, PartialEq, Eq)]
+#[cfg(test)]
+use ron;
+#[cfg(test)]
+use serde::Deserialize;
+
+#[derive(PartialEq, Eq)]
+#[cfg_attr(test, derive(Debug, Deserialize))]
+
 pub enum Operator {
     Eq,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
+#[cfg_attr(test, derive(Debug, Deserialize))]
 pub enum Value {
     Null,
     Bool(bool),
@@ -20,7 +28,9 @@ impl Value {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
+#[cfg_attr(test, derive(Debug, Deserialize))]
+
 pub enum Expr {
     BinaryExpr(Operator, Box<Expr>, Box<Expr>),
     Value(Value),
@@ -54,10 +64,16 @@ impl Expr {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
 
     use super::*;
     use std::collections::HashMap;
+
+    impl Expr {
+        pub fn ron(s: &str) -> Expr {
+            return ron::from_str(s).unwrap();
+        }
+    }
 
     struct Context {
         variables: HashMap<String, Value>,
@@ -70,22 +86,13 @@ mod tests {
     }
 
     #[test]
-    fn basic_test() {
+    fn ron_encoding_test() {
         let expr = Expr::BinaryExpr(
             Operator::Eq,
             Box::new(Expr::Value(Value::Str("John".to_string()))),
             Box::new(Expr::Value(Value::Variable("name".to_string()))),
         );
-
-        let context = Context {
-            variables: vec![("name".to_string(), Value::Str("John".to_string()))]
-                .into_iter()
-                .collect(),
-        };
-
-        let result = expr.evaluate(&context);
-        assert!(result == Value::Bool(true))
-
-        //        println!("{:?}", result)
+        let decoded = Expr::ron("BinaryExpr(Eq,Value(Str(\"John\")),Value(Variable(\"name\")))");
+        assert_eq!(expr, decoded);
     }
 }

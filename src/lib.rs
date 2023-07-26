@@ -1,9 +1,6 @@
-#![allow(unused_imports)]
-#![allow(dead_code)]
-
 pub mod ast;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 
 use ast::{Expr, Operator, Value};
 use nom::{
@@ -12,11 +9,10 @@ use nom::{
 };
 use nom_locate::LocatedSpan;
 use nom_recursive::{recursive_parser, RecursiveInfo};
-use std::error::Error;
-use std::fmt;
 
 type Span<'a> = LocatedSpan<&'a str, RecursiveInfo>;
 
+#[allow(dead_code)]
 fn ws<'a, F, O, E: ParseError<&'a str>>(inner: F) -> impl FnMut(&'a str) -> IResult<&'a str, O, E>
 where
     F: Parser<&'a str, O, E>,
@@ -58,6 +54,8 @@ fn operator(s: Span) -> IResult<Span, Operator> {
 
 fn value(s: Span) -> IResult<Span, Value> {
     return alt((
+        map(tag("true"), |_| Value::Bool(true)),
+        map(tag("false"), |_| Value::Bool(true)),
         map(identifier, |s| Value::Variable(s.to_string())),
         map(quoted_string, |s| Value::Str(s.to_string())),
     ))(s);
@@ -85,9 +83,12 @@ fn expression(s: Span) -> IResult<Span, Expr> {
 pub fn parse(s: &str) -> Result<Expr> {
     let span = LocatedSpan::new_extra(s, RecursiveInfo::new());
     let (remaining, expression) =
-        expression(span).map_err(|_| anyhow!("Failed to parse input."))?;
+        expression(span).map_err(|e| anyhow!("Failed to parse input. {:?}", e))?;
     if !remaining.is_empty() {
-        return Err(anyhow!("Failed to consume all of input."));
+        return Err(anyhow!(
+            "Failed to consume all of input (remaining: \"{}\").",
+            remaining
+        ));
     }
     return Ok(expression);
 }
@@ -100,8 +101,8 @@ fn span(s: &str) -> Span {
 mod tests {
 
     use super::*;
-    use ast::{Expr, Operator, Value, VariableLookup};
-    use std::collections::HashMap;
+    use ast::{EmptyLookup, Expr, Operator, Value, VariableLookup};
+    use std::{collections::HashMap, fmt::format};
 
     #[test]
     fn basic_test() {
@@ -147,14 +148,30 @@ mod tests {
 
     #[test]
     fn parse_test() {
-        let expr = parse("name == 'John'").unwrap();
         assert_eq!(
-            expr,
-            Expr::BinaryExpr(
-                Operator::Eq,
-                Box::new(Expr::Value(Value::Variable("name".to_string()))),
-                Box::new(Expr::Value(Value::Str("John".to_string()))),
-            )
+            parse("name == 'John'").unwrap(),
+            Expr::ron("BinaryExpr(Eq,Value(Variable(\"name\")),Value(Str(\"John\")))")
+        );
+    }
+
+    impl Value {
+        fn unwrap_bool(&self) -> bool {
+            match self {
+                Value::Bool(b) => b.clone(),
+                _ => panic!("Expected bool"),
+            }
+        }
+    }
+
+    #[test]
+
+    fn evaluation_tests() {
+        assert_eq!(
+            parse("true == true")
+                .unwrap()
+                .evaluate(&EmptyLookup {})
+                .unwrap_bool(),
+            true
         );
     }
 
@@ -168,16 +185,17 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn complex_test() {
-    //     let context = Context {
-    //         variables: vec![("name".to_string(), Value::Str("John".to_string()))]
-    //             .into_iter()
-    //             .collect(),
-    //     };
-
-    //     let ast = parse("'x' == 'x'").unwrap();
-    //     let result = ast.evaluate(&context);
-    //     println!("{:?}", result);
-    // }
+    #[test]
+    fn complex_test() {
+        let name = "John";
+        let context = Context {
+            variables: vec![("name".to_string(), Value::Str(name.to_string()))]
+                .into_iter()
+                .collect(),
+        };
+        let f = format!("name == '{}'", name);
+        let ast = parse(&f).unwrap();
+        let result = ast.evaluate(&context);
+        assert_eq!(result.unwrap_bool(), true);
+    }
 }

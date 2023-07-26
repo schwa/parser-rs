@@ -7,6 +7,5 @@ pub mod ast;
 use parser::parse;
 
 fn main() {
-    let x = parse("name == 'John'").unwrap();
-    println!("{:?}", x);
+    parse("name == 'John'").unwrap();
 }
