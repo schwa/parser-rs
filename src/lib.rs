@@ -84,7 +84,8 @@ fn expression(s: Span) -> IResult<Span, Expr> {
 
 pub fn parse(s: &str) -> Result<Expr> {
     let span = LocatedSpan::new_extra(s, RecursiveInfo::new());
-    let (remaining, expression) = expression(span).w(|_| anyhow!("Failed to parse input."))?;
+    let (remaining, expression) =
+        expression(span).map_err(|_| anyhow!("Failed to parse input."))?;
     if !remaining.is_empty() {
         return Err(anyhow!("Failed to consume all of input."));
     }
