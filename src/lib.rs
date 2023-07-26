@@ -3,6 +3,8 @@
 
 pub mod ast;
 
+use anyhow::{anyhow, Context, Result};
+
 use ast::{Expr, Operator, Value};
 use nom::{
     branch::*, bytes::complete::*, character::complete::*, combinator::*, error::*, multi::*,
@@ -80,22 +82,11 @@ fn expression(s: Span) -> IResult<Span, Expr> {
     return alt((binary_expression, value_expression))(s);
 }
 
-#[derive(Debug)]
-pub struct MyError {}
-
-impl Error for MyError {}
-
-impl fmt::Display for MyError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-pub fn parse(s: &str) -> Result<Expr, MyError> {
+pub fn parse(s: &str) -> Result<Expr> {
     let span = LocatedSpan::new_extra(s, RecursiveInfo::new());
-    let (remaining, expression) = expression(span).map_err(|_| MyError {})?;
+    let (remaining, expression) = expression(span).w(|_| anyhow!("Failed to parse input."))?;
     if !remaining.is_empty() {
-        return Err(MyError {});
+        return Err(anyhow!("Failed to consume all of input."));
     }
     return Ok(expression);
 }
