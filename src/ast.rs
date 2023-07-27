@@ -17,6 +17,10 @@ pub enum Operator {
     Gt,
     Ge,
     Contains,
+    // In
+    // And,
+    // Or,
+    // Not, // TODO
 }
 
 // MARK: -
@@ -105,6 +109,9 @@ impl Expr {
                     Operator::Ge => Ok(Value::Bool(left >= right)),
                     Operator::Contains => match (left, right) {
                         (Value::List(left), right) => {
+                            return Ok(Value::Bool(left.contains(&right)));
+                        }
+                        (Value::Str(left), Value::Str(right)) => {
                             return Ok(Value::Bool(left.contains(&right)));
                         }
                         _ => Err(anyhow!("`contains` operator invalid {:?}", op)),
