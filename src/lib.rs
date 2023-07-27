@@ -1,4 +1,4 @@
-mod ast;
+pub mod ast;
 
 // https://github.com/rust-bakery/nom/blob/main/doc/choosing_a_combinator.md
 

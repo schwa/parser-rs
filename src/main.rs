@@ -1,6 +1,5 @@
-mod ast;
 use anyhow::{anyhow, Result};
-use ast::{Value, VariableLookup};
+use parser::ast::{Value, VariableLookup};
 use parser::parse;
 use std::collections::HashMap;
 
@@ -18,13 +17,14 @@ impl VariableLookup for Context {
 }
 
 fn main() {
-    // let name = "John";
-    // let context = Context {
-    //     variables: vec![("name".to_string(), Value::Str(name.to_string()))]
-    //         .into_iter()
-    //         .collect(),
-    // };
-    // let f = format!("name == '{}'", name);
-    // let ast = parse(&f).unwrap();
-    // let result = ast.evaluate(&context).unwrap();
+    let name = "John";
+    let context = Context {
+        variables: vec![("name".to_string(), Value::Str(name.to_string()))]
+            .into_iter()
+            .collect(),
+    };
+    let f = format!("name == '{}'", name);
+    let ast = parse(&f).unwrap();
+    let result = ast.evaluate(&context).unwrap();
+    println!("Result: {:?}", result);
 }
