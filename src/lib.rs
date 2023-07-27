@@ -59,13 +59,13 @@ fn operator(s: Span) -> IResult<Span, Operator> {
         map(tag("<"), |_| Operator::Lt),
         map(tag(">="), |_| Operator::Ge),
         map(tag(">"), |_| Operator::Gt),
+        map(tag("contains"), |_| Operator::Contains),
     ));
     return delimited(multispace0, inner, multispace0)(s);
 }
 
 fn value(s: Span) -> IResult<Span, Value> {
     return alt((
-        map(tag("null"), |_| Value::Null),
         map(tag("true"), |_| Value::Bool(true)),
         map(tag("false"), |_| Value::Bool(false)),
         map(identifier, |s| Value::Variable(s.to_string())),
@@ -117,11 +117,11 @@ mod tests {
     }
 
     fn test_bool(s: &str) -> bool {
-        return bool::try_from(&parse(s).unwrap().evaluate_().unwrap()).unwrap();
+        return bool::try_from(&parse(s).unwrap().evaluate_without_lookup().unwrap()).unwrap();
     }
 
     fn test_string(s: &str) -> String {
-        return String::try_from(&parse(s).unwrap().evaluate_().unwrap()).unwrap();
+        return String::try_from(&parse(s).unwrap().evaluate_without_lookup().unwrap()).unwrap();
     }
 
     struct Context {
@@ -209,7 +209,27 @@ mod tests {
         };
         let f = format!("name == '{}'", name);
         let ast = parse(&f).unwrap();
-        let result = ast.evaluate_with_lookup(&context).unwrap();
+        let result = ast.evaluate(&context).unwrap();
         assert_eq!(bool::try_from(&result).unwrap(), true);
+    }
+
+    #[test]
+    fn contains_test() {
+        let r = Value::ron("List([Str(\"John\")])");
+        let context = Context {
+            variables: vec![("list".to_string(), r.clone())].into_iter().collect(),
+        };
+        let f = format!("list contains 'John'");
+        let ast = parse(&f).unwrap();
+        let result = ast.evaluate(&context).unwrap();
+        assert_eq!(bool::try_from(&result).unwrap(), true);
+
+        println!("{:?}", r);
+    }
+
+    impl Value {
+        fn ron(s: &str) -> Value {
+            return ron::from_str(s).unwrap();
+        }
     }
 }

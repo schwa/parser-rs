@@ -5,9 +5,10 @@ use serde::Deserialize;
 
 use anyhow::{anyhow, Result};
 
+// MARK: -
+
 #[derive(PartialEq, Eq, Debug)]
 #[cfg_attr(test, derive(Deserialize))]
-
 pub enum Operator {
     Eq,
     Ne,
@@ -15,16 +16,19 @@ pub enum Operator {
     Le,
     Gt,
     Ge,
+    Contains,
 }
+
+// MARK: -
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 #[cfg_attr(test, derive(Deserialize))]
 pub enum Value {
-    Null,
     Bool(bool),
     Str(String),
     Int(i64),
     Variable(String),
+    List(Vec<Value>),
 }
 
 impl Value {
@@ -69,32 +73,29 @@ impl TryFrom<Value> for i64 {
     }
 }
 
+// MARK: -
+
 #[derive(PartialEq, Eq, Debug)]
 #[cfg_attr(test, derive(Deserialize))]
-
 pub enum Expr {
     BinaryExpr(Operator, Box<Expr>, Box<Expr>),
     Value(Value),
 }
 
+// MARK: -
+
 pub trait VariableLookup {
     fn get_variable(&self, name: &str) -> Result<Value>;
 }
 
-pub struct EmptyLookup {}
-
-impl VariableLookup for EmptyLookup {
-    fn get_variable(&self, _name: &str) -> Result<Value> {
-        Ok(Value::Null)
-    }
-}
+// MARK: -
 
 impl Expr {
-    pub fn evaluate_with_lookup(&self, lookup: &dyn VariableLookup) -> Result<Value> {
+    pub fn evaluate(&self, lookup: &dyn VariableLookup) -> Result<Value> {
         match self {
             Expr::BinaryExpr(op, left, right) => {
-                let left = left.evaluate_with_lookup(lookup)?;
-                let right = right.evaluate_with_lookup(lookup)?;
+                let left = left.evaluate(lookup)?;
+                let right = right.evaluate(lookup)?;
                 match op {
                     Operator::Eq => Ok(Value::Bool(left == right)),
                     Operator::Ne => Ok(Value::Bool(left != right)),
@@ -102,17 +103,36 @@ impl Expr {
                     Operator::Le => Ok(Value::Bool(left <= right)),
                     Operator::Gt => Ok(Value::Bool(left > right)),
                     Operator::Ge => Ok(Value::Bool(left >= right)),
-                    //_ => Err(anyhow!("Unsupported operator {:?}", op)),
+                    Operator::Contains => match (left, right) {
+                        (Value::List(left), right) => {
+                            return Ok(Value::Bool(left.contains(&right)));
+                        }
+                        _ => Err(anyhow!("`contains` operator invalid {:?}", op)),
+                    }, //_ => Err(anyhow!("Unsupported operator {:?}", op)),
                 }
             }
             Expr::Value(value) => value.evaluate(lookup),
         }
     }
+}
 
-    pub fn evaluate_(&self) -> Result<Value> {
-        return self.evaluate_with_lookup(&EmptyLookup {});
+// MARK: -
+
+pub struct EmptyLookup {}
+
+impl VariableLookup for EmptyLookup {
+    fn get_variable(&self, _name: &str) -> Result<Value> {
+        Err(anyhow!("Variable not found."))
     }
 }
+
+impl Expr {
+    pub fn evaluate_without_lookup(&self) -> Result<Value> {
+        return self.evaluate(&EmptyLookup {});
+    }
+}
+
+// MARK: -
 
 #[cfg(test)]
 pub mod tests {
