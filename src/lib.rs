@@ -1,16 +1,14 @@
-pub mod ast;
+mod ast;
 
 use anyhow::{anyhow, Result};
-
 use ast::{Expr, Operator, Value};
 use nom::{
     branch::*, bytes::complete::*, character::complete::*, combinator::*, error::*, multi::*,
     sequence::*, *,
 };
-use nom_locate::LocatedSpan;
 use nom_recursive::{recursive_parser, RecursiveInfo};
 
-type Span<'a> = LocatedSpan<&'a str, RecursiveInfo>;
+type Span<'a> = nom_locate::LocatedSpan<&'a str, RecursiveInfo>;
 
 #[allow(dead_code)]
 fn ws<'a, F, O, E: ParseError<&'a str>>(inner: F) -> impl FnMut(&'a str) -> IResult<&'a str, O, E>
@@ -55,7 +53,7 @@ fn operator(s: Span) -> IResult<Span, Operator> {
 fn value(s: Span) -> IResult<Span, Value> {
     return alt((
         map(tag("true"), |_| Value::Bool(true)),
-        map(tag("false"), |_| Value::Bool(true)),
+        map(tag("false"), |_| Value::Bool(false)),
         map(identifier, |s| Value::Variable(s.to_string())),
         map(quoted_string, |s| Value::Str(s.to_string())),
     ))(s);
@@ -81,7 +79,7 @@ fn expression(s: Span) -> IResult<Span, Expr> {
 }
 
 pub fn parse(s: &str) -> Result<Expr> {
-    let span = LocatedSpan::new_extra(s, RecursiveInfo::new());
+    let span = Span::new_extra(s, RecursiveInfo::new());
     let (remaining, expression) =
         expression(span).map_err(|e| anyhow!("Failed to parse input. {:?}", e))?;
     if !remaining.is_empty() {
@@ -93,16 +91,15 @@ pub fn parse(s: &str) -> Result<Expr> {
     return Ok(expression);
 }
 
-fn span(s: &str) -> Span {
-    return LocatedSpan::new_extra(s, RecursiveInfo::new());
-}
-
 #[cfg(test)]
 mod tests {
+    fn span(s: &str) -> Span {
+        return Span::new_extra(s, RecursiveInfo::new());
+    }
 
     use super::*;
     use ast::{EmptyLookup, Expr, Operator, Value, VariableLookup};
-    use std::{collections::HashMap, fmt::format};
+    use std::collections::HashMap;
 
     #[test]
     fn basic_test() {
@@ -161,10 +158,25 @@ mod tests {
                 _ => panic!("Expected bool"),
             }
         }
+        fn unwrap_string(&self) -> String {
+            match self {
+                Value::Str(s) => s.clone(),
+                _ => panic!("Expected str"),
+            }
+        }
     }
 
     #[test]
+    fn single_values() {
+        assert_eq!(parse("true").unwrap().evaluate_().unwrap_bool(), true);
+        assert_eq!(parse("false").unwrap().evaluate_().unwrap_bool(), false);
+        assert_eq!(
+            parse("'hello'").unwrap().evaluate_().unwrap_string(),
+            "hello"
+        );
+    }
 
+    #[test]
     fn evaluation_tests() {
         assert_eq!(
             parse("true == true")
@@ -172,6 +184,20 @@ mod tests {
                 .evaluate(&EmptyLookup {})
                 .unwrap_bool(),
             true
+        );
+        assert_eq!(
+            parse("true == false")
+                .unwrap()
+                .evaluate(&EmptyLookup {})
+                .unwrap_bool(),
+            false
+        );
+        assert_eq!(
+            parse("'hello' == false")
+                .unwrap()
+                .evaluate(&EmptyLookup {})
+                .unwrap_bool(),
+            false
         );
     }
 
@@ -199,3 +225,11 @@ mod tests {
         assert_eq!(result.unwrap_bool(), true);
     }
 }
+
+/*
+
+
+dirty == true
+
+
+*/

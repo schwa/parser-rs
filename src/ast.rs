@@ -61,6 +61,10 @@ impl Expr {
             Expr::Value(value) => value.evaluate(lookup),
         }
     }
+
+    pub fn evaluate_(&self) -> Value {
+        return self.evaluate(&EmptyLookup {});
+    }
 }
 
 #[cfg(test)]
