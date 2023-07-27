@@ -7,7 +7,7 @@ use anyhow::{anyhow, Result};
 
 // MARK: -
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Debug)]
 #[cfg_attr(test, derive(Deserialize))]
 pub enum Operator {
     Eq,
@@ -25,7 +25,7 @@ pub enum Operator {
 
 // MARK: -
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+#[derive(PartialEq, PartialOrd, Clone, Debug)]
 #[cfg_attr(test, derive(Deserialize))]
 pub enum Value {
     Bool(bool),
@@ -79,7 +79,7 @@ impl TryFrom<Value> for i64 {
 
 // MARK: -
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Debug)]
 #[cfg_attr(test, derive(Deserialize))]
 pub enum Expr {
     BinaryExpr(Operator, Box<Expr>, Box<Expr>),
