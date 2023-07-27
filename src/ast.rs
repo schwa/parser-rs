@@ -90,11 +90,11 @@ impl VariableLookup for EmptyLookup {
 }
 
 impl Expr {
-    pub fn evaluate(&self, lookup: &dyn VariableLookup) -> Result<Value> {
+    pub fn evaluate_with_lookup(&self, lookup: &dyn VariableLookup) -> Result<Value> {
         match self {
             Expr::BinaryExpr(op, left, right) => {
-                let left = left.evaluate(lookup)?;
-                let right = right.evaluate(lookup)?;
+                let left = left.evaluate_with_lookup(lookup)?;
+                let right = right.evaluate_with_lookup(lookup)?;
                 match op {
                     Operator::Eq => Ok(Value::Bool(left == right)),
                     Operator::Ne => Ok(Value::Bool(left != right)),
@@ -110,7 +110,7 @@ impl Expr {
     }
 
     pub fn evaluate_(&self) -> Result<Value> {
-        return self.evaluate(&EmptyLookup {});
+        return self.evaluate_with_lookup(&EmptyLookup {});
     }
 }
 

@@ -209,7 +209,7 @@ mod tests {
         };
         let f = format!("name == '{}'", name);
         let ast = parse(&f).unwrap();
-        let result = ast.evaluate(&context).unwrap();
+        let result = ast.evaluate_with_lookup(&context).unwrap();
         assert_eq!(bool::try_from(&result).unwrap(), true);
     }
 }
