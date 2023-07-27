@@ -32,6 +32,6 @@ fn old_main() {
 fn main() {
     let e = parse("1 == 1 and 2 == 2").unwrap();
     println!("{}", e.unparse());
-    // e.dump(0);
-    // println!("{:?}", e.evaluate_without_lookup().unwrap())
+    e.dump(0);
+    println!("{:?}", e.evaluate_without_lookup());
 }

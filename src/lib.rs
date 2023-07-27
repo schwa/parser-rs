@@ -45,8 +45,6 @@ fn quoted_string(s: Span) -> IResult<Span, Span> {
 
 fn operator(s: Span) -> IResult<Span, Operator> {
     let inner = alt((
-        map(tag("and"), |_| Operator::And),
-        map(tag("or"), |_| Operator::Or),
         map(tag("=="), |_| Operator::Eq),
         map(tag("!="), |_| Operator::Ne),
         map(tag("<="), |_| Operator::Le),
@@ -54,6 +52,8 @@ fn operator(s: Span) -> IResult<Span, Operator> {
         map(tag(">="), |_| Operator::Ge),
         map(tag(">"), |_| Operator::Gt),
         map(tag("contains"), |_| Operator::Contains),
+        map(tag("and"), |_| Operator::And),
+        map(tag("or"), |_| Operator::Or),
     ));
     return delimited(multispace0, inner, multispace0)(s);
 }
