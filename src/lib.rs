@@ -1,71 +1,82 @@
 pub mod ast;
 
+// https://github.com/rust-bakery/nom/blob/main/doc/choosing_a_combinator.md
+
+use anyhow::{anyhow, Result};
 use ast::{Expr, Operator, Value};
+// TODO: Remove reliance on *.
 use nom::{
-    branch::*, bytes::complete::*, character::complete::*, combinator::*, error::*, multi::*,
-    sequence::*, *,
+    branch::*, bytes::complete::*, character::complete::*, combinator::*, multi::*, sequence::*, *,
 };
-use nom_locate::LocatedSpan;
 use nom_recursive::{recursive_parser, RecursiveInfo};
-use std::error::Error;
-use std::fmt;
 
-//type Span<'a> = LocatedSpan<&'a str, RecursiveInfo>;
+type Span<'a> = nom_locate::LocatedSpan<&'a str, RecursiveInfo>;
 
-fn ws<'a, F, O, E: ParseError<&'a str>>(inner: F) -> impl FnMut(&'a str) -> IResult<&'a str, O, E>
-where
-    F: Parser<&'a str, O, E>,
-{
-    delimited(multispace0, inner, multispace0)
+fn decimal(input: Span) -> IResult<Span, i64> {
+    map(digit1, |s: Span| s.parse::<i64>().unwrap())(input) // TODO: Unwrap considered harmful.
 }
 
-fn identifier(input: &str) -> IResult<&str, &str> {
+fn identifier(s: Span) -> IResult<Span, Span> {
     recognize(pair(
         alt((alpha1, tag("_"))),
         many0_count(alt((alphanumeric1, tag("_")))),
-    ))(input)
+    ))(s)
 }
 
-fn single_quoted_string(input: &str) -> IResult<&str, &str> {
+fn single_quoted_string(s: Span) -> IResult<Span, Span> {
     delimited(
         char('\''),
         escaped(is_not("\'"), '\\', one_of("\'n\\")),
         char('\''),
-    )(input)
+    )(s)
 }
 
-fn double_quoted_string(input: &str) -> IResult<&str, &str> {
+fn double_quoted_string(s: Span) -> IResult<Span, Span> {
     delimited(
         char('"'),
         escaped(is_not("\""), '\\', one_of("\"n\\")),
         char('"'),
-    )(input)
+    )(s)
 }
 
-fn quoted_string(input: &str) -> IResult<&str, &str> {
-    alt((single_quoted_string, double_quoted_string))(input)
+fn quoted_string(s: Span) -> IResult<Span, Span> {
+    alt((single_quoted_string, double_quoted_string))(s)
 }
 
-fn operator(input: &str) -> IResult<&str, Operator> {
-    ws(alt((map(tag("=="), |_| Operator::Eq),)))(input)
-
-    // let mut eq = into(tag("=="));
-
-    // let xxx: IResult<&str, Operator> = ws(alt((eq)))(input);
-
-    // return xxx;
+fn operator(s: Span) -> IResult<Span, Operator> {
+    let inner = alt((
+        map(tag("and"), |_| Operator::And),
+        map(tag("or"), |_| Operator::Or),
+        map(tag("=="), |_| Operator::Eq),
+        map(tag("!="), |_| Operator::Ne),
+        map(tag("<="), |_| Operator::Le),
+        map(tag("<"), |_| Operator::Lt),
+        map(tag(">="), |_| Operator::Ge),
+        map(tag(">"), |_| Operator::Gt),
+        map(tag("contains"), |_| Operator::Contains),
+    ));
+    return delimited(multispace0, inner, multispace0)(s);
 }
 
-fn value(input: &str) -> IResult<&str, Value> {
-    return alt((
+fn value(s: Span) -> IResult<Span, Value> {
+    let inner = alt((
+        map(tag("true"), |_| Value::Bool(true)),
+        map(tag("false"), |_| Value::Bool(false)),
         map(identifier, |s| Value::Variable(s.to_string())),
         map(quoted_string, |s| Value::Str(s.to_string())),
-    ))(input);
+        map(decimal, |v| Value::Int(v)),
+    ));
+    return delimited(multispace0, inner, multispace0)(s);
+}
+
+fn value_expression(s: Span) -> IResult<Span, Expr> {
+    let (remaining, value) = value(s)?;
+    return Ok((remaining, Expr::Value(value)));
 }
 
 //#[recursive_parser]
-fn binary_expression(input: &str) -> IResult<&str, Expr> {
-    let (remaining, expression) = tuple((expression, operator, expression))(&input)?;
+fn binary_expression(s: Span) -> IResult<Span, Expr> {
+    let (remaining, expression) = tuple((value_expression, operator, expression))(s)?;
 
     let (left, op, right) = expression;
     let expr = Expr::BinaryExpr(op, Box::new(left), Box::new(right));
@@ -73,110 +84,171 @@ fn binary_expression(input: &str) -> IResult<&str, Expr> {
 }
 
 //#[recursive_parser]
-fn expression(input: &str) -> IResult<&str, Expr> {
-    return alt((binary_expression, map(value, |v| Expr::Value(v))))(input);
+fn paren_expression(s: Span) -> IResult<Span, Expr> {
+    return delimited(char('('), expression, char(')'))(s);
 }
 
-#[derive(Debug)]
-pub struct MyError {}
+//#[recursive_parser]
+fn expression(s: Span) -> IResult<Span, Expr> {
+    return alt((paren_expression, binary_expression, value_expression))(s);
+}
 
-impl Error for MyError {}
-
-impl fmt::Display for MyError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+pub fn parse(s: &str) -> Result<Expr> {
+    let span = Span::new_extra(s, RecursiveInfo::new());
+    let (remaining, expression) =
+        expression(span).map_err(|e| anyhow!("Failed to parse input. {:?}", e))?;
+    if !remaining.is_empty() {
+        return Err(anyhow!(
+            "Failed to consume all of input (remaining: \"{}\").",
+            remaining
+        ));
     }
-}
-
-pub fn parse(s: &str) -> Result<Expr, MyError> {
-    let (remaining, expression) = expression(&s).map_err(|_| MyError {})?;
-    // if !remaining.is_empty() {
-    //     return Err(MyError {});
-    // }
-    println!("[{:?}]", remaining);
-    println!("{:?}", expression);
     return Ok(expression);
 }
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use ast::{Expr, Operator, Value, VariableLookup};
     use std::collections::HashMap;
 
-    #[test]
-    fn basic_test() {
-        assert_eq!(identifier("input").unwrap(), ("", "input"));
-        assert_eq!(quoted_string("'input'").unwrap(), ("", "input"));
-        assert_eq!(quoted_string("\"input\"").unwrap(), ("", "input"));
-        assert_eq!(quoted_string("\"input\"").unwrap(), ("", "input"));
-        assert_eq!(operator("==").unwrap(), ("", Operator::Eq));
-        assert_eq!(operator("  ==").unwrap(), ("", Operator::Eq));
-        assert_eq!(operator("==  ").unwrap(), ("", Operator::Eq));
-        assert_eq!(operator("  ==  ").unwrap(), ("", Operator::Eq));
+    fn span(s: &str) -> Span {
+        return Span::new_extra(s, RecursiveInfo::new());
     }
 
-    #[test]
-    fn expressions_tests() {
-        assert_eq!(
-            binary_expression("name == 'John'").unwrap(),
-            (
-                "",
-                Expr::BinaryExpr(
-                    Operator::Eq,
-                    Box::new(Expr::Value(Value::Variable("name".to_string()))),
-                    Box::new(Expr::Value(Value::Str("John".to_string()))),
-                )
-            )
-        );
-        assert_eq!(
-            expression("name == 'John'").unwrap(),
-            (
-                "",
-                Expr::BinaryExpr(
-                    Operator::Eq,
-                    Box::new(Expr::Value(Value::Variable("name".to_string()))),
-                    Box::new(Expr::Value(Value::Str("John".to_string()))),
-                )
-            )
-        );
+    fn test_bool(s: &str) -> bool {
+        return bool::try_from(&parse(s).unwrap().evaluate_without_lookup().unwrap()).unwrap();
     }
 
-    // #[test]
-    // fn parse_test() {
-    //     let expr = parse("name == 'John'").unwrap();
-    //     println!("{:?}", expr);
-    //     assert_eq!(
-    //         expr,
-    //         Expr::BinaryExpr(
-    //             Operator::Eq,
-    //             Box::new(Expr::Value(Value::Variable("name".to_string()))),
-    //             Box::new(Expr::Value(Value::Str("John".to_string()))),
-    //         )
-    //     );
-    // }
+    fn test_string(s: &str) -> String {
+        return String::try_from(&parse(s).unwrap().evaluate_without_lookup().unwrap()).unwrap();
+    }
 
     struct Context {
         variables: HashMap<String, Value>,
     }
 
     impl VariableLookup for Context {
-        fn get_variable(&self, name: &str) -> Value {
-            self.variables.get(name).unwrap().clone()
+        fn get_variable(&self, name: &str) -> Result<Value> {
+            self.variables
+                .get(name)
+                .ok_or_else(|| anyhow!("Variable '{}' not found.", name))
+                .map(|v| v.clone())
         }
     }
 
     #[test]
+    fn basic_test() {
+        assert_eq!(*identifier(span("input")).unwrap().1.fragment(), "input");
+        assert_eq!(
+            *quoted_string(span("'input'")).unwrap().1.fragment(),
+            "input"
+        );
+        assert_eq!(
+            *quoted_string(span("\"input\"")).unwrap().1.fragment(),
+            "input"
+        );
+        assert_eq!(
+            *quoted_string(span("'input'")).unwrap().1.fragment(),
+            "input"
+        );
+        assert_eq!(operator(span("==")).unwrap().1, Operator::Eq);
+        assert_eq!(operator(span(" ==")).unwrap().1, Operator::Eq);
+        assert_eq!(operator(span("== ")).unwrap().1, Operator::Eq);
+        assert_eq!(operator(span(" == ")).unwrap().1, Operator::Eq);
+    }
+
+    #[test]
+    fn expressions_tests() {
+        assert_eq!(
+            binary_expression(span("name=='John'")).unwrap().1,
+            Expr::ron("BinaryExpr(Eq,Value(Variable(\"name\")),Value(Str(\"John\")))")
+        );
+
+        assert_eq!(
+            expression(span("name=='John'")).unwrap().1,
+            Expr::ron("BinaryExpr(Eq,Value(Variable(\"name\")),Value(Str(\"John\")))")
+        );
+    }
+
+    #[test]
+    fn parse_test() {
+        assert_eq!(
+            parse("name == 'John'").unwrap(),
+            Expr::ron("BinaryExpr(Eq,Value(Variable(\"name\")),Value(Str(\"John\")))")
+        );
+    }
+
+    #[test]
+    fn single_values() {
+        assert_eq!(test_bool("true"), true);
+        assert_eq!(test_bool("false"), false);
+        assert_eq!(test_string("'hello'"), "hello");
+        assert_eq!(test_bool(" true"), true);
+        assert_eq!(test_bool("true "), true);
+        assert_eq!(test_bool(" true "), true);
+    }
+
+    #[test]
+    fn evaluation_tests() {
+        assert_eq!(test_bool("true == true"), true);
+        assert_eq!(test_bool("true == false"), false);
+        assert_eq!(test_bool("'hello' == 200"), false);
+        assert_eq!(test_bool("100 == 200"), false);
+        assert_eq!(test_bool("100 != 200"), true);
+        assert_eq!(test_bool("100 > 200"), false);
+        assert_eq!(test_bool("100 < 200"), true);
+        assert_eq!(test_bool("100 >= 200"), false);
+        assert_eq!(test_bool("100 <= 200"), true);
+        assert_eq!(test_bool("true == true == true"), true);
+        assert_eq!(test_bool("true == false == true"), false);
+        //assert_eq!(test_bool("false > 200"), false); // TODO: Meaningless.
+    }
+    #[test]
+    fn paren_evaluation_tests() {
+        assert_eq!(test_bool("(true == true)"), true);
+        assert_eq!(test_bool("(true == (1 == 1))"), true);
+        assert_eq!(test_bool("(true == (1 == 2))"), false);
+        assert_eq!(test_bool("(true)"), true);
+        assert_eq!(test_bool("((true))"), true);
+        assert_eq!(test_bool("(((true)))"), true);
+        assert_eq!(test_bool("(1 == 1)"), true);
+        println!("{:?}", parse("1 == 1 and 2 == 2"));
+        parse("1 == 1 and 2 == 2").unwrap().dump(0)
+        //        assert_eq!(test_bool("1 == 1 and 2 == 2"), true);
+    }
+
+    #[test]
     fn complex_test() {
+        let name = "John";
         let context = Context {
-            variables: vec![("name".to_string(), Value::Str("John".to_string()))]
+            variables: vec![("name".to_string(), Value::Str(name.to_string()))]
                 .into_iter()
                 .collect(),
         };
+        let f = format!("name == '{}'", name);
+        let ast = parse(&f).unwrap();
+        let result = ast.evaluate(&context).unwrap();
+        assert_eq!(bool::try_from(&result).unwrap(), true);
+    }
 
-        let ast = parse("'x' == 'x'").unwrap();
-        let result = ast.evaluate(&context);
-        println!("{:?}", result);
+    #[test]
+    fn contains_test() {
+        let r = Value::ron("List([Str(\"John\")])");
+        let context = Context {
+            variables: vec![("list".to_string(), r.clone())].into_iter().collect(),
+        };
+        let f = format!("list contains 'John'");
+        let ast = parse(&f).unwrap();
+        let result = ast.evaluate(&context).unwrap();
+        assert_eq!(bool::try_from(&result).unwrap(), true);
+
+        println!("{:?}", r);
+    }
+
+    impl Value {
+        fn ron(s: &str) -> Value {
+            return ron::from_str(s).unwrap();
+        }
     }
 }
