@@ -108,13 +108,39 @@ pub fn parse(s: &str) -> Result<Expr> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use ast::{Expr, Operator, Value, VariableLookup};
+    use std::collections::HashMap;
+
     fn span(s: &str) -> Span {
         return Span::new_extra(s, RecursiveInfo::new());
     }
 
-    use super::*;
-    use ast::{EmptyLookup, Expr, Operator, Value, VariableLookup};
-    use std::collections::HashMap;
+    impl Value {
+        fn unwrap_bool(&self) -> bool {
+            bool::try_from(self).unwrap()
+        }
+        fn unwrap_string(&self) -> String {
+            String::try_from(self).unwrap()
+        }
+    }
+
+    fn test(s: &str) -> bool {
+        parse(s).unwrap().evaluate_().unwrap().unwrap_bool()
+    }
+
+    struct Context {
+        variables: HashMap<String, Value>,
+    }
+
+    impl VariableLookup for Context {
+        fn get_variable(&self, name: &str) -> Result<Value> {
+            self.variables
+                .get(name)
+                .ok_or_else(|| anyhow!("Variable '{}' not found.", name))
+                .map(|v| v.clone())
+        }
+    }
 
     #[test]
     fn basic_test() {
@@ -158,25 +184,10 @@ mod tests {
         );
     }
 
-    impl Value {
-        fn unwrap_bool(&self) -> bool {
-            bool::try_from(self).unwrap()
-        }
-        fn unwrap_string(&self) -> String {
-            String::try_from(self).unwrap()
-        }
-    }
-
     #[test]
     fn single_values() {
-        assert_eq!(
-            parse("true").unwrap().evaluate_().unwrap().unwrap_bool(),
-            true
-        );
-        assert_eq!(
-            parse("false").unwrap().evaluate_().unwrap().unwrap_bool(),
-            false
-        );
+        assert_eq!(test("true"), true);
+        assert_eq!(test("false"), false);
         assert_eq!(
             parse("'hello'")
                 .unwrap()
@@ -198,23 +209,6 @@ mod tests {
         assert_eq!(test("100 < 200"), true);
         assert_eq!(test("100 >= 200"), false);
         assert_eq!(test("100 <= 200"), true);
-    }
-
-    fn test(s: &str) -> bool {
-        parse(s).unwrap().evaluate_().unwrap().unwrap_bool()
-    }
-
-    struct Context {
-        variables: HashMap<String, Value>,
-    }
-
-    impl VariableLookup for Context {
-        fn get_variable(&self, name: &str) -> Result<Value> {
-            self.variables
-                .get(name)
-                .ok_or_else(|| anyhow!("Variable '{}' not found.", name))
-                .map(|v| v.clone())
-        }
     }
 
     #[test]
