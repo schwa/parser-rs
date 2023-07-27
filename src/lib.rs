@@ -4,24 +4,16 @@ pub mod ast;
 
 use anyhow::{anyhow, Result};
 use ast::{Expr, Operator, Value};
+// TODO: Remove reliance on *.
 use nom::{
-    branch::*, bytes::complete::*, character::complete::*, combinator::*, error::*, multi::*,
-    sequence::*, *,
+    branch::*, bytes::complete::*, character::complete::*, combinator::*, multi::*, sequence::*, *,
 };
 use nom_recursive::{recursive_parser, RecursiveInfo};
 
 type Span<'a> = nom_locate::LocatedSpan<&'a str, RecursiveInfo>;
 
-#[allow(dead_code)]
-fn ws<'a, F, O, E: ParseError<&'a str>>(inner: F) -> impl FnMut(&'a str) -> IResult<&'a str, O, E>
-where
-    F: Parser<&'a str, O, E>,
-{
-    delimited(multispace0, inner, multispace0)
-}
-
 fn decimal(input: Span) -> IResult<Span, i64> {
-    map(digit1, |s: Span| s.parse::<i64>().unwrap())(input) // TODO: Unwrap
+    map(digit1, |s: Span| s.parse::<i64>().unwrap())(input) // TODO: Unwrap considered harmful.
 }
 
 fn identifier(s: Span) -> IResult<Span, Span> {
@@ -53,6 +45,8 @@ fn quoted_string(s: Span) -> IResult<Span, Span> {
 
 fn operator(s: Span) -> IResult<Span, Operator> {
     let inner = alt((
+        map(tag("and"), |_| Operator::And),
+        map(tag("or"), |_| Operator::Or),
         map(tag("=="), |_| Operator::Eq),
         map(tag("!="), |_| Operator::Ne),
         map(tag("<="), |_| Operator::Le),
@@ -65,13 +59,14 @@ fn operator(s: Span) -> IResult<Span, Operator> {
 }
 
 fn value(s: Span) -> IResult<Span, Value> {
-    return alt((
+    let inner = alt((
         map(tag("true"), |_| Value::Bool(true)),
         map(tag("false"), |_| Value::Bool(false)),
         map(identifier, |s| Value::Variable(s.to_string())),
         map(quoted_string, |s| Value::Str(s.to_string())),
         map(decimal, |v| Value::Int(v)),
-    ))(s);
+    ));
+    return delimited(multispace0, inner, multispace0)(s);
 }
 
 fn value_expression(s: Span) -> IResult<Span, Expr> {
@@ -79,7 +74,7 @@ fn value_expression(s: Span) -> IResult<Span, Expr> {
     return Ok((remaining, Expr::Value(value)));
 }
 
-#[recursive_parser]
+//#[recursive_parser]
 fn binary_expression(s: Span) -> IResult<Span, Expr> {
     let (remaining, expression) = tuple((value_expression, operator, expression))(s)?;
 
@@ -88,9 +83,14 @@ fn binary_expression(s: Span) -> IResult<Span, Expr> {
     return Ok((remaining, expr));
 }
 
-#[recursive_parser]
+//#[recursive_parser]
+fn paren_expression(s: Span) -> IResult<Span, Expr> {
+    return delimited(char('('), expression, char(')'))(s);
+}
+
+//#[recursive_parser]
 fn expression(s: Span) -> IResult<Span, Expr> {
-    return alt((binary_expression, value_expression))(s);
+    return alt((paren_expression, binary_expression, value_expression))(s);
 }
 
 pub fn parse(s: &str) -> Result<Expr> {
@@ -184,6 +184,9 @@ mod tests {
         assert_eq!(test_bool("true"), true);
         assert_eq!(test_bool("false"), false);
         assert_eq!(test_string("'hello'"), "hello");
+        assert_eq!(test_bool(" true"), true);
+        assert_eq!(test_bool("true "), true);
+        assert_eq!(test_bool(" true "), true);
     }
 
     #[test]
@@ -200,6 +203,19 @@ mod tests {
         assert_eq!(test_bool("true == true == true"), true);
         assert_eq!(test_bool("true == false == true"), false);
         //assert_eq!(test_bool("false > 200"), false); // TODO: Meaningless.
+    }
+    #[test]
+    fn paren_evaluation_tests() {
+        assert_eq!(test_bool("(true == true)"), true);
+        assert_eq!(test_bool("(true == (1 == 1))"), true);
+        assert_eq!(test_bool("(true == (1 == 2))"), false);
+        assert_eq!(test_bool("(true)"), true);
+        assert_eq!(test_bool("((true))"), true);
+        assert_eq!(test_bool("(((true)))"), true);
+        assert_eq!(test_bool("(1 == 1)"), true);
+        println!("{:?}", parse("1 == 1 and 2 == 2"));
+        parse("1 == 1 and 2 == 2").unwrap().dump(0)
+        //        assert_eq!(test_bool("1 == 1 and 2 == 2"), true);
     }
 
     #[test]

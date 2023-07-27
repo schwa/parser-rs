@@ -16,7 +16,7 @@ impl VariableLookup for Context {
     }
 }
 
-fn main() {
+fn old_main() {
     let name = "John";
     let context = Context {
         variables: vec![("name".to_string(), Value::Str(name.to_string()))]
@@ -27,4 +27,11 @@ fn main() {
     let ast = parse(&f).unwrap();
     let result = ast.evaluate(&context).unwrap();
     println!("Result: {:?}", result);
+}
+
+fn main() {
+    let e = parse("1 == 1 and 2 == 2").unwrap();
+    println!("{}", e.unparse());
+    // e.dump(0);
+    // println!("{:?}", e.evaluate_without_lookup().unwrap())
 }

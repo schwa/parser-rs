@@ -18,8 +18,8 @@ pub enum Operator {
     Ge,
     Contains,
     // In
-    // And,
-    // Or,
+    And,
+    Or,
     // Not, // TODO
 }
 
@@ -50,7 +50,7 @@ impl TryFrom<&Value> for bool {
     fn try_from(value: &Value) -> Result<Self> {
         match value {
             Value::Bool(v) => Ok(v.clone()),
-            _ => Err(anyhow!("Not a bool")),
+            _ => Err(anyhow!("Not a bool (got {:?})", value)),
         }
     }
 }
@@ -61,7 +61,7 @@ impl TryFrom<&Value> for String {
     fn try_from(value: &Value) -> Result<Self> {
         match value {
             Value::Str(v) => Ok(v.clone()),
-            _ => Err(anyhow!("Not a string")),
+            _ => Err(anyhow!("Not a string (got {:?})", value)),
         }
     }
 }
@@ -72,7 +72,7 @@ impl TryFrom<Value> for i64 {
     fn try_from(value: Value) -> Result<Self> {
         match value {
             Value::Int(v) => Ok(v),
-            _ => Err(anyhow!("Not an int")),
+            _ => Err(anyhow!("Not an (got {:?})", value)),
         }
     }
 }
@@ -84,6 +84,67 @@ impl TryFrom<Value> for i64 {
 pub enum Expr {
     BinaryExpr(Operator, Box<Expr>, Box<Expr>),
     Value(Value),
+}
+
+impl Expr {
+    pub fn dump(&self, depth: usize) {
+        match self {
+            Expr::BinaryExpr(op, left, right) => {
+                println!("{}{:?}", "  ".repeat(depth), op);
+                left.dump(depth + 1);
+                right.dump(depth + 1);
+            }
+            Expr::Value(v) => {
+                println!("{}{:?}", "  ".repeat(depth), v);
+            }
+        }
+    }
+}
+
+impl Value {
+    pub fn unparse(&self) -> String {
+        match self {
+            Value::Bool(v) => return format!("{}", v),
+            Value::Str(v) => return format!("\"{}\"", v),
+            Value::Int(v) => return format!("{}", v),
+            Value::Variable(v) => return format!("{}", v),
+            Value::List(v) => {
+                let mut s = String::new();
+                s.push('[');
+                for (i, v) in v.iter().enumerate() {
+                    if i > 0 {
+                        s.push_str(", ");
+                    }
+                    s.push_str(&v.unparse());
+                }
+                s.push(']');
+                return s;
+            }
+        }
+    }
+}
+
+impl Expr {
+    pub fn unparse(&self) -> String {
+        match self {
+            Expr::BinaryExpr(op, left, right) => {
+                let left = left.unparse();
+                let right = right.unparse();
+                match op {
+                    Operator::Eq => return format!("({} == {})", left, right),
+                    Operator::Ne => return format!("({} != {})", left, right),
+                    Operator::Lt => return format!("({} < {})", left, right),
+                    Operator::Le => return format!("({} <= {})", left, right),
+                    Operator::Gt => return format!("({} > {})", left, right),
+                    Operator::Ge => return format!("({} >= {})", left, right),
+                    Operator::Contains => return format!("({} contains {})", left, right),
+                    Operator::And => return format!("({} and {})", left, right),
+                    Operator::Or => return format!("({} or {})", left, right),
+                }
+            }
+            Expr::Value(value) => value.unparse(),
+        }
+    }
 }
 
 // MARK: -
@@ -119,6 +180,16 @@ impl Expr {
                         }
                         _ => Err(anyhow!("`contains` operator invalid {:?}", op)),
                     }, //_ => Err(anyhow!("Unsupported operator {:?}", op)),
+                    Operator::And => {
+                        let left = bool::try_from(&left)?;
+                        let right = bool::try_from(&right)?;
+                        return Ok(Value::Bool(left && right));
+                    }
+                    Operator::Or => {
+                        let left = bool::try_from(&left)?;
+                        let right = bool::try_from(&right)?;
+                        return Ok(Value::Bool(left || right));
+                    }
                 }
             }
             Expr::Value(value) => value.evaluate(lookup),
