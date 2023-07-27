@@ -25,7 +25,7 @@ pub enum Operator {
 
 // MARK: -
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, PartialOrd, Clone, Debug)]
 #[cfg_attr(test, derive(Deserialize))]
 pub enum Value {
     Bool(bool),
@@ -33,17 +33,6 @@ pub enum Value {
     Int(i64),
     Variable(String),
     List(Vec<Value>),
-}
-
-impl PartialOrd for Value {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match (self, other) {
-            (Value::Int(left), Value::Int(right)) => left.partial_cmp(right),
-            (Value::Str(left), Value::Str(right)) => left.partial_cmp(right),
-            (Value::Bool(left), Value::Bool(right)) => left.partial_cmp(right),
-            _ => None,
-        }
-    }
 }
 
 impl Value {
@@ -112,7 +101,11 @@ impl Expr {
                 let left = left.evaluate(lookup)?;
                 let right = right.evaluate(lookup)?;
                 match op {
-                    Operator::Eq => Ok(Value::Bool(left == right)),
+                    Operator::Eq => {
+                        let x = left.eq(&right);
+
+                        return Ok(Value::Bool(left == right));
+                    }
                     Operator::Ne => Ok(Value::Bool(left != right)),
                     Operator::Lt => Ok(Value::Bool(left < right)),
                     Operator::Le => Ok(Value::Bool(left <= right)),

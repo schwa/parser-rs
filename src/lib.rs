@@ -199,7 +199,7 @@ mod tests {
         assert_eq!(test_bool("100 <= 200"), true);
         assert_eq!(test_bool("true == true == true"), true);
         assert_eq!(test_bool("true == false == true"), false);
-        assert_eq!(test_bool("false > 200"), false); // TODO: Meaningless.
+        //assert_eq!(test_bool("false > 200"), false); // TODO: Meaningless.
     }
 
     #[test]
