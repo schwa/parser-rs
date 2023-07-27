@@ -3,7 +3,7 @@ use ron;
 #[cfg(test)]
 use serde::Deserialize;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 
 #[derive(PartialEq, Eq)]
 #[cfg_attr(test, derive(Debug, Deserialize))]
@@ -71,23 +71,11 @@ impl Expr {
 
 #[cfg(test)]
 pub mod tests {
-
     use super::*;
-    use std::collections::HashMap;
 
     impl Expr {
         pub fn ron(s: &str) -> Expr {
             return ron::from_str(s).unwrap();
-        }
-    }
-
-    struct Context {
-        variables: HashMap<String, Value>,
-    }
-
-    impl VariableLookup for Context {
-        fn get_variable(&self, name: &str) -> Result<Value> {
-            Ok(self.variables.get(name).unwrap().clone())
         }
     }
 

@@ -168,10 +168,20 @@ mod tests {
 
     #[test]
     fn single_values() {
-        assert_eq!(parse("true").unwrap().evaluate_().unwrap_bool(), true);
-        assert_eq!(parse("false").unwrap().evaluate_().unwrap_bool(), false);
         assert_eq!(
-            parse("'hello'").unwrap().evaluate_().unwrap_string(),
+            parse("true").unwrap().evaluate_().unwrap().unwrap_bool(),
+            true
+        );
+        assert_eq!(
+            parse("false").unwrap().evaluate_().unwrap().unwrap_bool(),
+            false
+        );
+        assert_eq!(
+            parse("'hello'")
+                .unwrap()
+                .evaluate_()
+                .unwrap()
+                .unwrap_string(),
             "hello"
         );
     }
@@ -182,6 +192,7 @@ mod tests {
             parse("true == true")
                 .unwrap()
                 .evaluate(&EmptyLookup {})
+                .unwrap()
                 .unwrap_bool(),
             true
         );
@@ -189,6 +200,7 @@ mod tests {
             parse("true == false")
                 .unwrap()
                 .evaluate(&EmptyLookup {})
+                .unwrap()
                 .unwrap_bool(),
             false
         );
@@ -196,6 +208,7 @@ mod tests {
             parse("'hello' == false")
                 .unwrap()
                 .evaluate(&EmptyLookup {})
+                .unwrap()
                 .unwrap_bool(),
             false
         );
@@ -206,8 +219,11 @@ mod tests {
     }
 
     impl VariableLookup for Context {
-        fn get_variable(&self, name: &str) -> Value {
-            self.variables.get(name).unwrap().clone()
+        fn get_variable(&self, name: &str) -> Result<Value> {
+            self.variables
+                .get(name)
+                .ok_or_else(|| anyhow!("Variable '{}' not found.", name))
+                .map(|v| v.clone())
         }
     }
 
@@ -222,6 +238,6 @@ mod tests {
         let f = format!("name == '{}'", name);
         let ast = parse(&f).unwrap();
         let result = ast.evaluate(&context);
-        assert_eq!(result.unwrap_bool(), true);
+        assert_eq!(result.unwrap().unwrap_bool(), true);
     }
 }
