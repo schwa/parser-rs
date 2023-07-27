@@ -1,5 +1,6 @@
 #[cfg(test)]
 use ron;
+use ron::value;
 #[cfg(test)]
 use serde::Deserialize;
 
@@ -102,7 +103,7 @@ impl Expr {
 }
 
 impl Value {
-    pub fn unparse(&self) -> String {
+    fn unparse(&self) -> String {
         match self {
             Value::Bool(v) => return format!("{}", v),
             Value::Str(v) => return format!("\"{}\"", v),
@@ -128,18 +129,31 @@ impl Expr {
     pub fn unparse(&self) -> String {
         match self {
             Expr::BinaryExpr(op, left, right) => {
+                // Confirm that left and right are values not expressions
+                let values_only: bool;
+                match (left.as_ref(), right.as_ref()) {
+                    (Expr::Value(_), Expr::Value(_)) => values_only = true,
+                    _ => values_only = false,
+                }
+
                 let left = left.unparse();
                 let right = right.unparse();
+                let result: String;
                 match op {
-                    Operator::Eq => return format!("({} == {})", left, right),
-                    Operator::Ne => return format!("({} != {})", left, right),
-                    Operator::Lt => return format!("({} < {})", left, right),
-                    Operator::Le => return format!("({} <= {})", left, right),
-                    Operator::Gt => return format!("({} > {})", left, right),
-                    Operator::Ge => return format!("({} >= {})", left, right),
-                    Operator::Contains => return format!("({} contains {})", left, right),
-                    Operator::And => return format!("({} and {})", left, right),
-                    Operator::Or => return format!("({} or {})", left, right),
+                    Operator::Eq => result = format!("{} == {}", left, right),
+                    Operator::Ne => result = format!("{} != {}", left, right),
+                    Operator::Lt => result = format!("{} < {}", left, right),
+                    Operator::Le => result = format!("{} <= {}", left, right),
+                    Operator::Gt => result = format!("{} > {}", left, right),
+                    Operator::Ge => result = format!("{} >= {}", left, right),
+                    Operator::Contains => result = format!("{} contains {}", left, right),
+                    Operator::And => result = format!("{} and {}", left, right),
+                    Operator::Or => result = format!("{} or {}", left, right),
+                }
+                if values_only {
+                    return result.to_string();
+                } else {
+                    return format!("({})", result);
                 }
             }
             Expr::Value(value) => value.unparse(),
