@@ -101,16 +101,12 @@ impl Expr {
                 let left = left.evaluate(lookup)?;
                 let right = right.evaluate(lookup)?;
                 match op {
-                    Operator::Eq => {
-                        let x = left.eq(&right);
-
-                        return Ok(Value::Bool(left == right));
-                    }
+                    Operator::Eq => return Ok(Value::Bool(left == right)),
                     Operator::Ne => Ok(Value::Bool(left != right)),
-                    Operator::Lt => Ok(Value::Bool(left < right)),
-                    Operator::Le => Ok(Value::Bool(left <= right)),
-                    Operator::Gt => Ok(Value::Bool(left > right)),
-                    Operator::Ge => Ok(Value::Bool(left >= right)),
+                    Operator::Lt => Ok(Value::Bool(left.try_lt(&right)?)),
+                    Operator::Le => Ok(Value::Bool(left.try_le(&right)?)),
+                    Operator::Gt => Ok(Value::Bool(left.try_gt(&right)?)),
+                    Operator::Ge => Ok(Value::Bool(left.try_ge(&right)?)),
                     Operator::Contains => match (left, right) {
                         (Value::List(left), right) => {
                             return Ok(Value::Bool(left.contains(&right)));
@@ -128,6 +124,33 @@ impl Expr {
 }
 
 // MARK: -
+
+impl Value {
+    fn try_lt(&self, other: &Self) -> Result<bool> {
+        Ok(self
+            .partial_cmp(other)
+            .ok_or(anyhow!("Cannot compare {:?} and {:?}", self, other))?
+            == std::cmp::Ordering::Less)
+    }
+    fn try_le(&self, other: &Self) -> Result<bool> {
+        let r =
+            self.partial_cmp(other)
+                .ok_or(anyhow!("Cannot compare {:?} and {:?}", self, other))?;
+        return Ok(r == std::cmp::Ordering::Less || r == std::cmp::Ordering::Equal);
+    }
+    fn try_gt(&self, other: &Self) -> Result<bool> {
+        Ok(self
+            .partial_cmp(other)
+            .ok_or(anyhow!("Cannot compare {:?} and {:?}", self, other))?
+            == std::cmp::Ordering::Greater)
+    }
+    fn try_ge(&self, other: &Self) -> Result<bool> {
+        let r =
+            self.partial_cmp(other)
+                .ok_or(anyhow!("Cannot compare {:?} and {:?}", self, other))?;
+        return Ok(r == std::cmp::Ordering::Greater || r == std::cmp::Ordering::Equal);
+    }
+}
 
 pub struct EmptyLookup {}
 
