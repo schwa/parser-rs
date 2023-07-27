@@ -3,6 +3,8 @@ use ron;
 #[cfg(test)]
 use serde::Deserialize;
 
+use anyhow::{anyhow, Result};
+
 #[derive(PartialEq, Eq)]
 #[cfg_attr(test, derive(Debug, Deserialize))]
 
@@ -20,10 +22,10 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn evaluate(&self, lookup: &dyn VariableLookup) -> Value {
+    pub fn evaluate(&self, lookup: &dyn VariableLookup) -> Result<Value> {
         match self {
             Value::Variable(name) => lookup.get_variable(name),
-            _ => self.clone(),
+            _ => Ok(self.clone()),
         }
     }
 }
@@ -37,32 +39,32 @@ pub enum Expr {
 }
 
 pub trait VariableLookup {
-    fn get_variable(&self, name: &str) -> Value;
+    fn get_variable(&self, name: &str) -> Result<Value>;
 }
 
 pub struct EmptyLookup {}
 
 impl VariableLookup for EmptyLookup {
-    fn get_variable(&self, _name: &str) -> Value {
-        Value::Null
+    fn get_variable(&self, _name: &str) -> Result<Value> {
+        Ok(Value::Null)
     }
 }
 
 impl Expr {
-    pub fn evaluate(&self, lookup: &dyn VariableLookup) -> Value {
+    pub fn evaluate(&self, lookup: &dyn VariableLookup) -> Result<Value> {
         match self {
             Expr::BinaryExpr(op, left, right) => {
-                let left = left.evaluate(lookup);
-                let right = right.evaluate(lookup);
+                let left = left.evaluate(lookup)?;
+                let right = right.evaluate(lookup)?;
                 match op {
-                    Operator::Eq => Value::Bool(left == right),
+                    Operator::Eq => Ok(Value::Bool(left == right)),
                 }
             }
             Expr::Value(value) => value.evaluate(lookup),
         }
     }
 
-    pub fn evaluate_(&self) -> Value {
+    pub fn evaluate_(&self) -> Result<Value> {
         return self.evaluate(&EmptyLookup {});
     }
 }
@@ -84,8 +86,8 @@ pub mod tests {
     }
 
     impl VariableLookup for Context {
-        fn get_variable(&self, name: &str) -> Value {
-            self.variables.get(name).unwrap().clone()
+        fn get_variable(&self, name: &str) -> Result<Value> {
+            Ok(self.variables.get(name).unwrap().clone())
         }
     }
 

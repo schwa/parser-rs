@@ -225,11 +225,3 @@ mod tests {
         assert_eq!(result.unwrap_bool(), true);
     }
 }
-
-/*
-
-
-dirty == true
-
-
-*/
