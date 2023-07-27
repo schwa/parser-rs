@@ -198,6 +198,7 @@ mod tests {
         assert_eq!(test_bool("100 >= 200"), false);
         assert_eq!(test_bool("100 <= 200"), true);
         assert_eq!(test_bool("true == true == true"), true);
+        assert_eq!(test_bool("true == false == true"), false);
     }
 
     #[test]
