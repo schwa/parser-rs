@@ -116,17 +116,12 @@ mod tests {
         return Span::new_extra(s, RecursiveInfo::new());
     }
 
-    impl Value {
-        fn unwrap_bool(&self) -> bool {
-            bool::try_from(self).unwrap()
-        }
-        fn unwrap_string(&self) -> String {
-            String::try_from(self).unwrap()
-        }
+    fn test_bool(s: &str) -> bool {
+        return bool::try_from(&parse(s).unwrap().evaluate_().unwrap()).unwrap();
     }
 
-    fn test(s: &str) -> bool {
-        parse(s).unwrap().evaluate_().unwrap().unwrap_bool()
+    fn test_string(s: &str) -> String {
+        return String::try_from(&parse(s).unwrap().evaluate_().unwrap()).unwrap();
     }
 
     struct Context {
@@ -186,29 +181,22 @@ mod tests {
 
     #[test]
     fn single_values() {
-        assert_eq!(test("true"), true);
-        assert_eq!(test("false"), false);
-        assert_eq!(
-            parse("'hello'")
-                .unwrap()
-                .evaluate_()
-                .unwrap()
-                .unwrap_string(),
-            "hello"
-        );
+        assert_eq!(test_bool("true"), true);
+        assert_eq!(test_bool("false"), false);
+        assert_eq!(test_string("'hello'"), "hello");
     }
 
     #[test]
     fn evaluation_tests() {
-        assert_eq!(test("true == true"), true);
-        assert_eq!(test("true == false"), false);
-        assert_eq!(test("'hello' == 200"), false);
-        assert_eq!(test("100 == 200"), false);
-        assert_eq!(test("100 != 200"), true);
-        assert_eq!(test("100 > 200"), false);
-        assert_eq!(test("100 < 200"), true);
-        assert_eq!(test("100 >= 200"), false);
-        assert_eq!(test("100 <= 200"), true);
+        assert_eq!(test_bool("true == true"), true);
+        assert_eq!(test_bool("true == false"), false);
+        assert_eq!(test_bool("'hello' == 200"), false);
+        assert_eq!(test_bool("100 == 200"), false);
+        assert_eq!(test_bool("100 != 200"), true);
+        assert_eq!(test_bool("100 > 200"), false);
+        assert_eq!(test_bool("100 < 200"), true);
+        assert_eq!(test_bool("100 >= 200"), false);
+        assert_eq!(test_bool("100 <= 200"), true);
     }
 
     #[test]
@@ -221,7 +209,7 @@ mod tests {
         };
         let f = format!("name == '{}'", name);
         let ast = parse(&f).unwrap();
-        let result = ast.evaluate(&context);
-        assert_eq!(result.unwrap().unwrap_bool(), true);
+        let result = ast.evaluate(&context).unwrap();
+        assert_eq!(bool::try_from(&result).unwrap(), true);
     }
 }
