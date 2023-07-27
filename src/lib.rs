@@ -18,6 +18,10 @@ where
     delimited(multispace0, inner, multispace0)
 }
 
+fn decimal(input: Span) -> IResult<Span, i64> {
+    map(digit1, |s: Span| s.parse::<i64>().unwrap())(input) // TODO: Unwrap
+}
+
 fn identifier(s: Span) -> IResult<Span, Span> {
     recognize(pair(
         alt((alpha1, tag("_"))),
@@ -46,16 +50,25 @@ fn quoted_string(s: Span) -> IResult<Span, Span> {
 }
 
 fn operator(s: Span) -> IResult<Span, Operator> {
-    let inner = alt((map(tag("=="), |_| Operator::Eq),));
+    let inner = alt((
+        map(tag("=="), |_| Operator::Eq),
+        map(tag("!="), |_| Operator::Ne),
+        map(tag("<="), |_| Operator::Le),
+        map(tag("<"), |_| Operator::Lt),
+        map(tag(">="), |_| Operator::Ge),
+        map(tag(">"), |_| Operator::Gt),
+    ));
     return delimited(multispace0, inner, multispace0)(s);
 }
 
 fn value(s: Span) -> IResult<Span, Value> {
     return alt((
+        map(tag("null"), |_| Value::Null),
         map(tag("true"), |_| Value::Bool(true)),
         map(tag("false"), |_| Value::Bool(false)),
         map(identifier, |s| Value::Variable(s.to_string())),
         map(quoted_string, |s| Value::Str(s.to_string())),
+        map(decimal, |v| Value::Int(v)),
     ))(s);
 }
 
@@ -126,20 +139,12 @@ mod tests {
     fn expressions_tests() {
         assert_eq!(
             binary_expression(span("name=='John'")).unwrap().1,
-            Expr::BinaryExpr(
-                Operator::Eq,
-                Box::new(Expr::Value(Value::Variable("name".to_string()))),
-                Box::new(Expr::Value(Value::Str("John".to_string()))),
-            )
+            Expr::ron("BinaryExpr(Eq,Value(Variable(\"name\")),Value(Str(\"John\")))")
         );
 
         assert_eq!(
             expression(span("name=='John'")).unwrap().1,
-            Expr::BinaryExpr(
-                Operator::Eq,
-                Box::new(Expr::Value(Value::Variable("name".to_string()))),
-                Box::new(Expr::Value(Value::Str("John".to_string()))),
-            )
+            Expr::ron("BinaryExpr(Eq,Value(Variable(\"name\")),Value(Str(\"John\")))")
         );
     }
 
@@ -153,10 +158,7 @@ mod tests {
 
     impl Value {
         fn unwrap_bool(&self) -> bool {
-            match self {
-                Value::Bool(b) => b.clone(),
-                _ => panic!("Expected bool"),
-            }
+            bool::try_from(self).unwrap()
         }
         fn unwrap_string(&self) -> String {
             match self {
@@ -188,30 +190,19 @@ mod tests {
 
     #[test]
     fn evaluation_tests() {
-        assert_eq!(
-            parse("true == true")
-                .unwrap()
-                .evaluate(&EmptyLookup {})
-                .unwrap()
-                .unwrap_bool(),
-            true
-        );
-        assert_eq!(
-            parse("true == false")
-                .unwrap()
-                .evaluate(&EmptyLookup {})
-                .unwrap()
-                .unwrap_bool(),
-            false
-        );
-        assert_eq!(
-            parse("'hello' == false")
-                .unwrap()
-                .evaluate(&EmptyLookup {})
-                .unwrap()
-                .unwrap_bool(),
-            false
-        );
+        assert_eq!(test("true == true"), true);
+        assert_eq!(test("true == false"), false);
+        assert_eq!(test("'hello' == 200"), false);
+        assert_eq!(test("100 == 200"), false);
+        assert_eq!(test("100 != 200"), true);
+        assert_eq!(test("100 > 200"), false);
+        assert_eq!(test("100 < 200"), true);
+        assert_eq!(test("100 >= 200"), false);
+        assert_eq!(test("100 <= 200"), true);
+    }
+
+    fn test(s: &str) -> bool {
+        parse(s).unwrap().evaluate_().unwrap().unwrap_bool()
     }
 
     struct Context {

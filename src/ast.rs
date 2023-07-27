@@ -3,21 +3,27 @@ use ron;
 #[cfg(test)]
 use serde::Deserialize;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
-#[derive(PartialEq, Eq)]
-#[cfg_attr(test, derive(Debug, Deserialize))]
+#[derive(PartialEq, Eq, Debug)]
+#[cfg_attr(test, derive(Deserialize))]
 
 pub enum Operator {
     Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
 }
 
-#[derive(PartialEq, Eq, Clone)]
-#[cfg_attr(test, derive(Debug, Deserialize))]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+#[cfg_attr(test, derive(Deserialize))]
 pub enum Value {
     Null,
     Bool(bool),
     Str(String),
+    Int(i64),
     Variable(String),
 }
 
@@ -30,8 +36,41 @@ impl Value {
     }
 }
 
-#[derive(PartialEq, Eq)]
-#[cfg_attr(test, derive(Debug, Deserialize))]
+impl TryFrom<&Value> for bool {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &Value) -> Result<Self> {
+        match value {
+            Value::Bool(v) => Ok(v.clone()),
+            _ => Err(anyhow!("Not a bool")),
+        }
+    }
+}
+
+impl TryFrom<&Value> for String {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &Value) -> Result<Self> {
+        match value {
+            Value::Str(v) => Ok(v.clone()),
+            _ => Err(anyhow!("Not a string")),
+        }
+    }
+}
+
+impl TryFrom<&Value> for i64 {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &Value) -> Result<Self> {
+        match value {
+            Value::Int(v) => Ok(v.clone()),
+            _ => Err(anyhow!("Not an int")),
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Debug)]
+#[cfg_attr(test, derive(Deserialize))]
 
 pub enum Expr {
     BinaryExpr(Operator, Box<Expr>, Box<Expr>),
@@ -58,6 +97,12 @@ impl Expr {
                 let right = right.evaluate(lookup)?;
                 match op {
                     Operator::Eq => Ok(Value::Bool(left == right)),
+                    Operator::Ne => Ok(Value::Bool(left != right)),
+                    Operator::Lt => Ok(Value::Bool(left < right)),
+                    Operator::Le => Ok(Value::Bool(left <= right)),
+                    Operator::Gt => Ok(Value::Bool(left > right)),
+                    Operator::Ge => Ok(Value::Bool(left >= right)),
+                    //_ => Err(anyhow!("Unsupported operator {:?}", op)),
                 }
             }
             Expr::Value(value) => value.evaluate(lookup),
