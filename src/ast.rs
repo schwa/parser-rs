@@ -95,7 +95,10 @@ pub trait VariableLookup {
 // MARK: -
 
 impl Expr {
-    pub fn evaluate(&self, lookup: &dyn VariableLookup) -> Result<Value> {
+    pub fn evaluate<T>(&self, lookup: &T) -> Result<Value>
+    where
+        T: VariableLookup,
+    {
         match self {
             Expr::BinaryExpr(op, left, right) => {
                 let left = left.evaluate(lookup)?;
