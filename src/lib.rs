@@ -162,11 +162,8 @@ mod tests {
         fn unwrap_bool(&self) -> bool {
             bool::try_from(self).unwrap()
         }
-        fn unwrap_string(self) -> String {
-            match self {
-                Value::Str(s) => s.clone(),
-                _ => panic!("Expected str"),
-            }
+        fn unwrap_string(&self) -> String {
+            String::try_from(self).unwrap()
         }
     }
 
