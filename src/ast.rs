@@ -36,12 +36,12 @@ impl Value {
     }
 }
 
-impl TryFrom<Value> for bool {
+impl TryFrom<&Value> for bool {
     type Error = anyhow::Error;
 
-    fn try_from(value: Value) -> Result<Self> {
+    fn try_from(value: &Value) -> Result<Self> {
         match value {
-            Value::Bool(v) => Ok(v),
+            Value::Bool(v) => Ok(v.clone()),
             _ => Err(anyhow!("Not a bool")),
         }
     }
@@ -58,12 +58,12 @@ impl TryFrom<&Value> for String {
     }
 }
 
-impl TryFrom<&Value> for i64 {
+impl TryFrom<Value> for i64 {
     type Error = anyhow::Error;
 
-    fn try_from(value: &Value) -> Result<Self> {
+    fn try_from(value: Value) -> Result<Self> {
         match value {
-            Value::Int(v) => Ok(v.clone()),
+            Value::Int(v) => Ok(v),
             _ => Err(anyhow!("Not an int")),
         }
     }

@@ -1,5 +1,7 @@
 mod ast;
 
+// https://github.com/rust-bakery/nom/blob/main/doc/choosing_a_combinator.md
+
 use anyhow::{anyhow, Result};
 use ast::{Expr, Operator, Value};
 use nom::{
@@ -157,7 +159,7 @@ mod tests {
     }
 
     impl Value {
-        fn unwrap_bool(self) -> bool {
+        fn unwrap_bool(&self) -> bool {
             bool::try_from(self).unwrap()
         }
         fn unwrap_string(self) -> String {
